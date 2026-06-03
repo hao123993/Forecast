@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 from io import BytesIO
 
 st.set_page_config(page_title="產地自動分配與生管檢核系統", layout="wide")
@@ -59,11 +58,8 @@ custom_css = """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==========================================
-# 系統檔案與狀態初始化
+# 系統檔案與狀態初始化 (全改為 Session State 記憶體管理)
 # ==========================================
-MAPPING_FILE = "mapping.xlsx"
-ALLOCATED_FILE = "allocated_orders.xlsx"
-
 SHEET_NAMES = [
     '(1)區域_PD_投產地', 
     '(2)區域_內外單_PD_投產地', 
@@ -71,54 +67,40 @@ SHEET_NAMES = [
     '(4)區域_料號_PD_投產地'
 ]
 
+if 'mapping_data' not in st.session_state:
+    st.session_state['mapping_data'] = None
+if 'allocated_data' not in st.session_state:
+    st.session_state['allocated_data'] = None
 if 'delivery_result_df' not in st.session_state:
     st.session_state['delivery_result_df'] = None
 if 'warnings_df' not in st.session_state:
     st.session_state['warnings_df'] = None
 
-@st.cache_data
-def load_mapping():
-    if os.path.exists(MAPPING_FILE):
-        return {sheet: pd.read_excel(MAPPING_FILE, sheet_name=sheet) for sheet in SHEET_NAMES}
-    return None
-
-def save_mapping(mapping_dict):
-    with pd.ExcelWriter(MAPPING_FILE, engine='openpyxl') as writer:
-        for sheet, df in mapping_dict.items():
-            df.to_excel(writer, index=False, sheet_name=sheet)
-
-@st.cache_data
-def load_allocated():
-    if os.path.exists(ALLOCATED_FILE):
-        return pd.read_excel(ALLOCATED_FILE)
-    return None
-
-def save_allocated(df):
-    with pd.ExcelWriter(ALLOCATED_FILE, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='產地分配結果')
-
-mapping_data = load_mapping()
-allocated_data = load_allocated()
+mapping_data = st.session_state['mapping_data']
+allocated_data = st.session_state['allocated_data']
 
 st.title("🏭 產地自動分配與生管檢核系統")
 
-# ======= 💡 在這裡插入這段文字，一進網站就會看到了！ =======
-st.markdown("""
-本系統專為生管與業管，解決跨國/多廠區經營時，手動分配投產地繁瑣且易出錯的痛點。
-
-### 🎯 兩大核心營運模組
-1. **四級優先權自動排產演算法**：系統依據「(1)區域 ➔ (2)內外單 ➔ (3)客戶簡稱 ➔ (4)料號」進行四級漏斗式精準匹配，並自動比對歷史「起始日期」之有效性，實現一鍵自動產出初步投產地。
-2. **銷售組織交叉防錯檢核（生管達交）**：自動比對實務達交數據，當系統偵測到「銷售組織為（海外），但最終投產地卻被錯誤歸類為高雄或空白」時，會**主動觸發 🚨 異常紅色警報**，全面防堵人為貼錯風險。
-
-### 🛠 系統技術棧
-* **核心邏輯**：Python (Pandas 複雜多條件遮罩匹配、跨 Excel 分頁邏輯動態關聯)
-* **狀態管理**：Streamlit Session State & Cache Data 記憶優化
-* **前端視覺**：自訂 CSS Cream-Morandi 奶油色系封裝
----
-""")
-# =======================================================
+# ==========================================
+# 頂部專案導覽
+# ==========================================
+with st.expander("💡 點此展開：查看系統核心邏輯與管理價值 (System Overview)", expanded=True):
+    st.markdown("""
+    本系統專為製造業生管（PC/MC）與資材團隊設計，解決跨國/多廠區經營時，手動分配投產地繁瑣且易出錯的痛點。
+    
+    ### 🎯 兩大核心營運模組
+    1. **四級優先權自動排產演算法**：系統依據「(1)區域 ➔ (2)內外單 ➔ (3)客戶簡稱 ➔ (4)料號」進行四級漏斗式精準匹配，並自動比對歷史「起始日期」之有效性，實現一鍵自動產出初步投產地。
+    2. **銷售組織交叉防錯檢核（生管達交）**：自動比對實務達交數據，當系統偵測到「銷售組織為 CN10/TH10（海外），但最終投產地卻被錯誤歸類為高雄或空白」時，會**主動觸發 🚨 異常紅色警報**，全面防堵人為貼錯風險。
+    
+    ### 🛠 系統技術棧
+    * **核心邏輯**：Python (Pandas 複雜多條件遮罩匹配、跨 Excel 分頁邏輯動態關聯)
+    * **狀態管理**：Streamlit Session State 獨立隔離記憶（確保使用者資安隱私）
+    * **前端視覺**：自訂 CSS Cream-Morandi 奶油色系封裝
+    ---
+    """)
 
 tab1, tab2, tab3 = st.tabs(["🚀 1. 訂單產地分配", "📊 2. 生管達交比對", "⚙️ 3. 對照表維護"])
+
 # ==========================================
 # 分頁 1: 訂單產地分配
 # ==========================================
@@ -126,21 +108,30 @@ with tab1:
     st.header("訂單產地分配")
     
     if allocated_data is not None:
-        st.success("✅ 系統已自動載入最新的【產地分配結果】！你可以直接前往「標籤 2」進行生管比對。")
-        st.subheader("👀 目前系統中的分配結果預覽")
+        st.success("✅ 目前視窗已存有【產地分配結果】！你可以直接前往「標籤 2」進行生管比對。")
+        st.subheader("👀 目前分配結果預覽")
         
         preview_cols = ['年月', '業務地區別(TIPTOP)', '客戶簡稱', 'Product Name', '料號', '內/外單', '最終投產地', '起始日期', '備註', '系統匹配邏輯']
         display_cols = [col for col in preview_cols if col in allocated_data.columns]
         st.dataframe(allocated_data[display_cols], use_container_width=True)
 
-        with open(ALLOCATED_FILE, "rb") as f:
-            st.download_button("📥 下載目前系統分配結果 (Excel)", data=f, file_name="目前_訂單產地分配結果.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        # 記憶體內即時轉 Excel 下載
+        allocated_io = BytesIO()
+        with pd.ExcelWriter(allocated_io, engine='openpyxl') as writer:
+            allocated_data.to_excel(writer, index=False, sheet_name='產地分配結果')
+        
+        st.download_button(
+            "📥 下載目前分配結果 (Excel)", 
+            data=allocated_io.getvalue(), 
+            file_name="訂單產地分配結果.xlsx", 
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
         st.divider()
         st.subheader("🔄 重新分配新訂單 (這將覆蓋上述舊資料)")
 
     if mapping_data is None:
-        st.warning("⚠️ 請先至「對照表維護」分頁上傳對照表。")
+        st.warning("⚠️ 系統檢測到目前尚未上傳對照表。請先至「⚙️ 3. 對照表維護」分頁上傳匹配對照表。")
     else:
         order_file = st.file_uploader("上傳新的【訂單明細】Excel", type=["xlsx"], key="order_upload")
         
@@ -206,20 +197,15 @@ with tab1:
                         best1 = get_best_match(match1, order_date)
                         if best1 is not None: return pd.Series([best1['投產地'], best1['起始日期'], best1['備註'], "匹配 (1)"])
 
-                        # 🌟 最終預設
                         return pd.Series(["高雄", None, None, "預設 (高雄)"])
 
                     df_order[['最終投產地', '起始日期', '備註', '系統匹配邏輯']] = df_order.apply(
                         lambda row: assign_production_site(row, df_map1, df_map2, df_map3, df_map4), axis=1
                     )
                     
-                    save_allocated(df_order)
-                    
-                    # 🚀 關鍵解法：強制清除 Streamlit 的記憶，讓它讀取最新檔案！
-                    load_allocated.clear() 
-                    
+                    st.session_state['allocated_data'] = df_order
                     st.session_state['delivery_result_df'] = None
-                    st.success("✅ 產地分配完成並已永久儲存！系統已自動更新為最新結果。")
+                    st.success("✅ 產地分配完成！")
                     st.rerun()
                     
             except Exception as e:
@@ -232,11 +218,10 @@ with tab2:
     st.header("生管達交 v.s 預估投產地 比對")
     
     if allocated_data is None:
-        st.warning("⚠️ 系統目前沒有【產地分配結果】資料。請先去「標籤 1」上傳訂單並執行產地分配。")
+        st.warning("⚠️ 系統目前沒有【產地分配結果】資料。請先去「🚀 1. 訂單產地分配」上傳訂單並執行產地分配。")
     else:
-        st.info("💡 系統已自動使用「標籤 1」最新的產地分配資料作為比對基準。")
+        st.info("💡 系統已自動整合最新的內部產地分配結果作為比對基準。")
         
-        # 🌟 新增：產生並提供空白範本下載
         template_cols = ['銷售組織', '客戶簡稱', '來源客戶簡稱', 'Product Name', '最終投產地']
         df_template = pd.DataFrame(columns=template_cols)
         template_io = BytesIO()
@@ -249,7 +234,7 @@ with tab2:
             file_name="生管達交_空白範本.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        st.divider() # 加一條分隔線讓畫面更乾淨
+        st.divider()
 
         delivery_file = st.file_uploader("上傳填寫好的【生管達交v.s預估投產地】Excel", type=["xlsx"], key="delivery_upload")
         
@@ -309,20 +294,20 @@ with tab2:
                 file_name="生管達交_比對後結果.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 # ==========================================
 # 分頁 3: 對照表維護
 # ==========================================
 with tab3:
     st.header("對照表維護")
     if mapping_data is None:
-        st.info("💡 系統尚未建立對照表，請進行「首次上傳」。")
+        st.info("💡 系統尚未載入對照表，請先進行「初始上傳對照表」。")
         uploaded_map = st.file_uploader("上傳初始【匹配對照表】Excel", type=["xlsx"], key="init_upload")
         if uploaded_map:
             try:
                 init_mapping = {sheet: pd.read_excel(uploaded_map, sheet_name=sheet) for sheet in SHEET_NAMES}
-                save_mapping(init_mapping)
-                load_mapping.clear() # 🚀 清除快取
-                st.success("✅ 初始對照表建立成功！請點擊下方按鈕或重新整理網頁。")
+                st.session_state['mapping_data'] = init_mapping
+                st.success("✅ 初始對照表建立成功！")
                 st.rerun()
             except Exception as e:
                 st.error(f"上傳失敗：請確認你的 Excel 檔案是否包含這四個分頁。詳細錯誤：{e}")
@@ -337,13 +322,20 @@ with tab3:
         col1, col2 = st.columns(2)
         with col1:
             if st.button("💾 儲存網頁上的變更", type="primary"):
-                save_mapping(edited_data)
-                load_mapping.clear() # 🚀 清除快取
-                st.success("✅ 變更已成功儲存至系統！")
+                st.session_state['mapping_data'] = edited_data
+                st.success("✅ 變更已成功儲存至記憶體階段！")
                 st.rerun()
         with col2:
-            with open(MAPPING_FILE, "rb") as f:
-                st.download_button("📥 下載目前系統對照表", data=f, file_name="目前系統_mapping.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            mapping_io = BytesIO()
+            with pd.ExcelWriter(mapping_io, engine='openpyxl') as writer:
+                for sheet, df in mapping_data.items():
+                    df.to_excel(writer, index=False, sheet_name=sheet)
+            st.download_button(
+                "📥 下載目前系統對照表", 
+                data=mapping_io.getvalue(), 
+                file_name="系統目前對照表.xlsx", 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         
         st.divider()
         st.subheader("🔄 操作說明 2：重新上傳 (整份覆蓋)")
@@ -351,9 +343,8 @@ with tab3:
         if reupload_map and st.button("🚨 確認覆蓋目前系統對照表", type="primary"):
             try:
                 new_mapping = {sheet: pd.read_excel(reupload_map, sheet_name=sheet) for sheet in SHEET_NAMES}
-                save_mapping(new_mapping)
-                load_mapping.clear() # 🚀 清除快取
-                st.success("✅ 對照表已更新！請重新整理網頁。")
+                st.session_state['mapping_data'] = new_mapping
+                st.success("✅ 對照表已更新覆蓋！")
                 st.rerun()
             except Exception as e:
                 st.error(f"上傳失敗：請確認你的 Excel 檔案是否包含這四個分頁。詳細錯誤：{e}")
