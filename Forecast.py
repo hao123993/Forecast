@@ -108,7 +108,7 @@ with tab1:
     
     if allocated_data is not None:
         st.success("✅ 目前視窗已存有【產地分配結果】！你可以直接前往「標籤 2」進行生管比對。")
-        st.subheader("👀 目前分配結果預覽")
+        st.subheader("👀目前分配結果預覽")
         
         preview_cols = ['年月', '業務地區別(TIPTOP)', '客戶簡稱', 'Product Name', '料號', '內/外單', '最終投產地', '起始日期', '備註', '系統匹配邏輯']
         display_cols = [col for col in preview_cols if col in allocated_data.columns]
@@ -130,7 +130,7 @@ with tab1:
         st.subheader("🔄 重新分配新訂單 (這將覆蓋上述舊資料)")
 
     if mapping_data is None:
-        st.warning("⚠️ 系統檢測到目前尚未上傳對照表。請先至「⚙️ 3. 對照表維護」分頁上傳匹配對照表。")
+        st.warning("⚠️ 系統檢測到目前尚未上傳對照表。請先至「 3. 對照表維護⚙️」分頁上傳匹配對照表。")
     else:
         order_file = st.file_uploader("上傳新的【訂單明細】Excel", type=["xlsx"], key="order_upload")
         
@@ -217,7 +217,7 @@ with tab2:
     st.header("生管達交 v.s 預估投產地 比對")
     
     if allocated_data is None:
-        st.warning("⚠️ 系統目前沒有【產地分配結果】資料。請先去「🚀 1. 訂單產地分配」上傳訂單並執行產地分配。")
+        st.warning("⚠️ 系統目前沒有【產地分配結果】資料。請先去「 1. 訂單產地分配🚀」上傳訂單並執行產地分配。")
     else:
         st.info("💡 系統已自動整合最新的內部產地分配結果作為比對基準。")
         
@@ -300,7 +300,7 @@ with tab2:
 with tab3:
     st.header("對照表維護")
     if mapping_data is None:
-        st.info("💡 系統尚未載入對照表，請先進行「初始上傳對照表」。")
+        st.info("⚠️ 系統尚未載入對照表，請先進行「初始上傳對照表」。")
         uploaded_map = st.file_uploader("上傳初始【匹配對照表】Excel", type=["xlsx"], key="init_upload")
         if uploaded_map:
             try:
